@@ -1,0 +1,98 @@
+-- Memory Controller Lab Version
+-- Versione da implementare sulla scheda ALTERA DE2
+
+LIBRARY IEEE;
+USE IEEE.STD_LOGIC_1164.ALL;
+USE IEEE.NUMERIC_STD.ALL; 
+
+ENTITY MemoryController IS 
+PORT (-- Ingressi
+	  CLOCK_50: IN STD_LOGIC;
+	  SW : IN STD_LOGIC_VECTOR(0 TO 17);
+	  Data_UART_In: IN STD_LOGIC_VECTOR(29 DOWNTO 0);
+	  X_UART: IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+	  Y_UART: IN STD_LOGIC_VECTOR(8 DOWNTO 0);
+	  RD, WR: IN STD_LOGIC;
+	  X_VGA: IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+	  Y_VGA: IN STD_LOGIC_VECTOR(8 DOWNTO 0);
+	  Req_VGA: IN STD_LOGIC;
+	  -- Uscite
+	  RGB: OUT STD_LOGIC_VECTOR(29 DOWNTO 0);
+	  Data_UART_Out: INOUT STD_LOGIC_VECTOR(29 DOWNTO 0);
+	  Ack_UART: OUT STD_LOGIC;
+	  Ack_VGA: OUT STD_LOGIC;
+	  SRAM_DQ: INOUT STD_LOGIC_VECTOR(0 TO 15);
+	  SRAM_ADDR: OUT STD_LOGIC_VECTOR(17 DOWNTO 0);
+	  SRAM_OE_N: OUT STD_LOGIC;
+	  SRAM_CE_N: OUT STD_LOGIC;
+	  SRAM_WE_N: BUFFER STD_LOGIC;
+	  SRAM_UB_N: OUT STD_LOGIC;
+	  SRAM_LB_N: OUT STD_LOGIC);
+END MemoryController;
+
+ARCHITECTURE Structure OF MemoryController IS
+
+COMPONENT Arbitro IS 
+PORT (Clock, ResetN: IN STD_LOGIC;
+	  Data_UART_In: IN STD_LOGIC_VECTOR(29 DOWNTO 0);
+	  X_UART: IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+	  Y_UART: IN STD_LOGIC_VECTOR(8 DOWNTO 0);
+	  RD, WR: IN STD_LOGIC;
+	  X_VGA: IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+	  Y_VGA: IN STD_LOGIC_VECTOR(8 DOWNTO 0);
+	  Req_VGA: IN STD_LOGIC;
+	  Data_UART_Reg: OUT STD_LOGIC_VECTOR(29 DOWNTO 0);
+	  X: OUT STD_LOGIC_VECTOR(9 DOWNTO 0);
+	  Y: OUT STD_LOGIC_VECTOR(8 DOWNTO 0);
+	  R_Wn: BUFFER STD_LOGIC;
+	  Ack_UART_Reg: OUT STD_LOGIC;
+	  Ack_VGA_Reg: OUT STD_LOGIC;
+	  Start: OUT STD_LOGIC);
+END COMPONENT;
+
+COMPONENT MemoryInterface IS
+PORT (Clock, ResetN: IN STD_LOGIC;
+	  Start: IN STD_LOGIC;
+	  Data_UART_Reg: IN STD_LOGIC_VECTOR(29 DOWNTO 0);
+	  X: IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+	  Y: IN STD_LOGIC_VECTOR(8 DOWNTO 0);
+	  R_Wn: IN STD_LOGIC;
+	  Ack_VGA_Reg: IN STD_LOGIC;
+	  Ack_UART_Reg: IN STD_LOGIC;
+	  RGB: OUT STD_LOGIC_VECTOR(29 DOWNTO 0); 
+	  Data_Mem: INOUT STD_LOGIC_VECTOR(0 TO 15);
+	  Add: OUT STD_LOGIC_VECTOR(17 DOWNTO 0);
+	  OEn: OUT STD_LOGIC;
+	  CEn: OUT STD_LOGIC;
+	  WEn: BUFFER STD_LOGIC;
+	  UBn: OUT STD_LOGIC;
+	  LBn: OUT STD_LOGIC;
+	  Ack_VGA: OUT STD_LOGIC;
+	  Ack_UART: OUT STD_LOGIC;
+	  Data_UART_Out: OUT STD_LOGIC_VECTOR(29 DOWNTO 0));   
+END COMPONENT;
+
+SIGNAL Data_Arb: STD_LOGIC_VECTOR(29 DOWNTO 0);
+SIGNAL X: STD_LOGIC_VECTOR(9 DOWNTO 0);
+SIGNAL Y: STD_LOGIC_VECTOR(8 DOWNTO 0);
+SIGNAL R_Wn: STD_LOGIC;
+SIGNAL Start: STD_LOGIC;
+SIGNAL UART_Ar_To_MI: STD_LOGIC;
+SIGNAL VGA_Ar_To_MI: STD_LOGIC;
+SIGNAL Clock: STD_LOGIC;
+
+BEGIN
+
+ckdiv: PROCESS (CLOCK_50, SW(0))                  -- Divisore di frequenza. Freq in uscita 25MHz
+BEGIN 
+IF SW(0) = '0' THEN                               -- Asynchronous reset (active low)
+	Clock <= '0';
+    ELSIF CLOCK_50' EVENT AND CLOCK_50 = '1' THEN  -- Rising clock edge
+		Clock <= NOT Clock;
+    END IF;
+END PROCESS ckdiv;
+
+Arbiter: Arbitro PORT MAP (Clock => Clock, ResetN => SW(0), Data_UART_In => Data_UART_In, X_UART => X_UART, Y_UART => Y_UART, RD => RD, WR => WR, X_VGA => X_VGA, Y_VGA => Y_VGA, Req_VGA => Req_VGA, Data_UART_Reg => Data_Arb, X => X, Y => Y, R_Wn => R_Wn, Ack_UART_Reg => UART_Ar_To_MI, Ack_VGA_Reg => VGA_Ar_To_MI, Start => Start);
+MemInterface: MemoryInterface PORT MAP (Clock => Clock, ResetN => SW(0), Data_UART_Reg => Data_Arb, X => X, Y => Y, R_Wn => R_Wn, Data_MEM => SRAM_DQ, Start => Start, Data_UART_Out => Data_UART_Out, Add => SRAM_ADDR, OEn => SRAM_OE_N, CEn => SRAM_CE_N, UBn => SRAM_UB_N, LBn => SRAM_LB_N, WEn => SRAM_WE_N, RGB => RGB, Ack_VGA_Reg => VGA_Ar_To_MI, Ack_UART_Reg => UART_Ar_To_MI, Ack_VGA => Ack_VGA, Ack_UART => Ack_UART);
+
+END Structure;
